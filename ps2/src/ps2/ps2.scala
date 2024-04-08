@@ -5,8 +5,8 @@ import chisel3.util._
 import _root_.circt.stage.ChiselStage
 
 object PS2State extends ChiselEnum {
-  val sIdle, sSendClockLow, sSendDataLow, sSendReq, sSendParity, sSendStop,
-      sSendAck, sRecv = Value
+  val sIdle, sSendClockLow, sSendDataLow, sSendReqAndParity, sSendStop,
+      sSendAck, sSendErr, sRecv = Value
 }
 
 // default to 50MHz
@@ -23,7 +23,10 @@ class PS2(clockFreqInMHz: Int = 50) extends Module {
     val ps2_data_t = Output(Bool())
 
     // send req to ps2
+
     val req = Flipped(Decoupled(UInt(8.W)))
+
+    val req_error = Output(Bool())
 
     // receive resp from ps2
     val resp = Decoupled(UInt(8.W))
@@ -45,17 +48,23 @@ class PS2(clockFreqInMHz: Int = 50) extends Module {
   io.ps2_data_o := false.B
   io.ps2_data_t := true.B
   io.req.ready := false.B
+  io.req_error := false.B
 
   val counter100us = new Counter(100 * clockFreqInMHz)
-  val curReq = Reg(UInt(8.W))
-  val counterSend = new Counter(8)
+  val counter15ms = new Counter(15000 * clockFreqInMHz)
+  val counter2ms = new Counter(2000 * clockFreqInMHz)
+
+  // 8 bits + parity
+  val curReq = Reg(UInt(9.W))
+  val counterSend = new Counter(9)
 
   switch(state) {
     is(PS2State.sIdle) {
       io.req.ready := true.B
       when(io.req.valid) {
         // send
-        curReq := io.req.bits
+        // parity
+        curReq := Cat(curReq.asBools.reduce(_ ^ _) ^ true.B, io.req.bits)
         state := PS2State.sSendClockLow
         counter100us.reset()
       }
@@ -67,6 +76,7 @@ class PS2(clockFreqInMHz: Int = 50) extends Module {
       when(counter100us.inc()) {
         // wrap
         state := PS2State.sSendDataLow
+        counter15ms.reset()
       }
     }
     is(PS2State.sSendDataLow) {
@@ -78,11 +88,15 @@ class PS2(clockFreqInMHz: Int = 50) extends Module {
       // wait for the device to bring the clock line low
       // detect negedge
       when(!io.ps2_clock_i && lastClock) {
+        state := PS2State.sSendReqAndParity
         counterSend.reset()
-        state := PS2State.sSendReq
+        counter2ms.reset()
+      }.elsewhen(counter15ms.inc()) {
+        // 15ms timeout
+        state := PS2State.sSendErr
       }
     }
-    is(PS2State.sSendReq) {
+    is(PS2State.sSendReqAndParity) {
       io.ps2_data_t := false.B
       io.ps2_data_o := curReq(counterSend.value)
 
@@ -90,20 +104,11 @@ class PS2(clockFreqInMHz: Int = 50) extends Module {
       // detect negedge
       when(!io.ps2_clock_i && lastClock) {
         when(counterSend.inc()) {
-          // send parity
-          state := PS2State.sSendParity
+          state := PS2State.sSendStop
         }
-      }
-    }
-    is(PS2State.sSendParity) {
-      io.ps2_data_t := false.B
-      // compute parity
-      io.ps2_data_o := curReq.asBools.reduce(_ ^ _) ^ true.B
-
-      // wait for the device to bring the clock line low
-      // detect negedge
-      when(!io.ps2_clock_i && lastClock) {
-        state := PS2State.sSendStop
+      }.elsewhen(counter2ms.inc()) {
+        // 2ms timeout
+        state := PS2State.sSendErr
       }
     }
     is(PS2State.sSendStop) {
@@ -119,6 +124,10 @@ class PS2(clockFreqInMHz: Int = 50) extends Module {
         // finish transmission
         state := PS2State.sIdle
       }
+    }
+    is(PS2State.sSendErr) {
+      io.req_error := true.B
+      state := PS2State.sIdle
     }
   }
 }

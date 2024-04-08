@@ -22,12 +22,15 @@ class PS2BusSim(clockFreqInMHz: Int = 50) extends Module {
     // send req to ps2
     val req = Flipped(Decoupled(UInt(8.W)))
 
+    val req_error = Output(Bool())
+
     // receive resp from ps2
     val resp = Decoupled(UInt(8.W))
   })
 
   val dut = Module(new PS2(clockFreqInMHz))
   io.req <> dut.io.req
+  io.req_error := dut.io.req_error
   io.resp <> dut.io.resp
 
   // simulate bus
@@ -153,6 +156,40 @@ class PS2Spec extends AnyFreeSpec {
       dut.io.ps2_data_t.poke(true.B)
       dut.io.ps2_clock_t.poke(true.B)
       dut.clock.step(16)
+
+      // verify that is is ready to accept next req
+      dut.clock.step(64)
+      assert(dut.io.req.ready.peek().litToBoolean)
+    }
+  }
+
+  s"simulate ps2 timeout" in {
+    simulate(new PS2BusSim()) { dut =>
+      dut.io.ps2_clock_t.poke(true.B)
+      dut.io.ps2_data_t.poke(true.B)
+      dut.reset.poke(true.B)
+      dut.clock.step(16)
+      dut.reset.poke(false.B)
+      dut.clock.step(16)
+
+      // initially, clock and data are both high
+      assert(dut.io.ps2_clock_i.peek().litToBoolean)
+      assert(dut.io.ps2_data_i.peek().litToBoolean)
+
+      // send command
+      dut.io.req.valid.poke(true.B)
+      val data = 0x12
+      dut.io.req.bits.poke(data.U)
+      while (dut.io.req.ready.peek().litToBoolean == false) {
+        dut.clock.step()
+      }
+      dut.clock.step()
+      dut.io.req.valid.poke(false.B)
+
+      // wait for req_error
+      while (dut.io.req_error.peek().litToBoolean == false) {
+        dut.clock.step()
+      }
 
       // verify that is is ready to accept next req
       dut.clock.step(64)
