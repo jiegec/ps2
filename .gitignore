@@ -2,4 +2,5 @@
 /.vscode/
 /.bloop/
 /out/
+/test_run_dir/
 /*.sv

@@ -4,7 +4,14 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 
-class PS2 extends Module {
+object PS2State extends ChiselEnum {
+  val sIdle, sSendClockLow, sSendDataLow, sSendReq, sSendParity, sSendStop,
+      sSendAck, sRecv = Value
+}
+
+// default to 50MHz
+// reference: https://www.burtonsys.com/ps2_chapweske.htm
+class PS2(clockFreqInMHz: Int = 50) extends Module {
   val io = IO(new Bundle {
     // tri-state
     val ps2_clock_i = Input(Bool())
@@ -15,22 +22,105 @@ class PS2 extends Module {
     val ps2_data_o = Output(Bool())
     val ps2_data_t = Output(Bool())
 
-    // send command to ps2
-    val command = Flipped(Decoupled(UInt(8.W)))
+    // send req to ps2
+    val req = Flipped(Decoupled(UInt(8.W)))
 
-    // receive data from ps2
-    val data = Valid(UInt(8.W))
+    // receive resp from ps2
+    val resp = Decoupled(UInt(8.W))
   })
 
+  // add buffer for received resp
+  val respQueue = Module(new Queue(UInt(8.W), 16))
+  io.resp <> respQueue.io.deq
+
+  val state = RegInit(PS2State.sIdle)
+
+  val lastData = RegNext(io.ps2_data_i)
+  val lastClock = RegNext(io.ps2_clock_i)
+
+  // default wiring
+  respQueue.io.enq.noenq()
   io.ps2_clock_o := false.B
   io.ps2_clock_t := true.B
-
   io.ps2_data_o := false.B
   io.ps2_data_t := true.B
+  io.req.ready := false.B
 
-  io.command.ready := false.B
-  io.data.bits := 0.U
-  io.data.valid := false.B
+  val counter100us = new Counter(100 * clockFreqInMHz)
+  val curReq = Reg(UInt(8.W))
+  val counterSend = new Counter(8)
+
+  switch(state) {
+    is(PS2State.sIdle) {
+      io.req.ready := true.B
+      when(io.req.valid) {
+        // send
+        curReq := io.req.bits
+        state := PS2State.sSendClockLow
+        counter100us.reset()
+      }
+    }
+    is(PS2State.sSendClockLow) {
+      // bring the clock line low for at least 100 microseconds
+      io.ps2_clock_t := false.B
+      io.ps2_clock_o := false.B
+      when(counter100us.inc()) {
+        // wrap
+        state := PS2State.sSendDataLow
+      }
+    }
+    is(PS2State.sSendDataLow) {
+      // bring the data line low
+      // release the clock line
+      io.ps2_data_t := false.B
+      io.ps2_data_o := false.B
+
+      // wait for the device to bring the clock line low
+      // detect negedge
+      when(!io.ps2_clock_i && lastClock) {
+        counterSend.reset()
+        state := PS2State.sSendReq
+      }
+    }
+    is(PS2State.sSendReq) {
+      io.ps2_data_t := false.B
+      io.ps2_data_o := curReq(counterSend.value)
+
+      // wait for the device to bring the clock line low
+      // detect negedge
+      when(!io.ps2_clock_i && lastClock) {
+        when(counterSend.inc()) {
+          // send parity
+          state := PS2State.sSendParity
+        }
+      }
+    }
+    is(PS2State.sSendParity) {
+      io.ps2_data_t := false.B
+      // compute parity
+      io.ps2_data_o := curReq.asBools.reduce(_ ^ _) ^ true.B
+
+      // wait for the device to bring the clock line low
+      // detect negedge
+      when(!io.ps2_clock_i && lastClock) {
+        state := PS2State.sSendStop
+      }
+    }
+    is(PS2State.sSendStop) {
+      // release the data line
+      // wait for the device to bring clock low
+      when(!io.ps2_clock_i && lastClock) {
+        state := PS2State.sSendAck
+      }
+    }
+    is(PS2State.sSendAck) {
+      // wait for the device to release clock
+      when(io.ps2_clock_i && !lastClock) {
+        // finish transmission
+        state := PS2State.sIdle
+      }
+    }
+  }
 }
 
 object PS2 extends App {
