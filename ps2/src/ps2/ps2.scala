@@ -199,6 +199,8 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
 
 object PS2 extends App {
   ChiselStage.emitSystemVerilogFile(
-    new PS2Controller()
+    new PS2Controller(),
+    Array(),
+    Array("--lowering-options=disallowLocalVariables"),
   )
 }
