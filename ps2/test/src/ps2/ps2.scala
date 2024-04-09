@@ -16,52 +16,29 @@ class PS2BusSim(clockFreqInMHz: Int = 50) extends Module {
     // send req to ps2
     val req = Flipped(Decoupled(UInt(8.W)))
 
+    // the device does not respond in time
     val req_error = Output(Bool())
 
     // receive resp from ps2
     val resp = Decoupled(UInt(8.W))
+
+    // parity validation failed
+    val resp_error = Output(Bool())
   })
 
   val dut = Module(new PS2Controller(clockFreqInMHz))
   io.req <> dut.io.req
   io.req_error := dut.io.req_error
   io.resp <> dut.io.resp
+  io.resp_error := dut.io.resp_error
 
   // simulate bus
-  val ps2_clock = Wire(Bool())
-  when(io.ps2.clock.t && dut.io.ps2.clock.t) {
-    // pull-up
-    ps2_clock := true.B
-  }.elsewhen(io.ps2.clock.t && !dut.io.ps2.clock.t) {
-    ps2_clock := dut.io.ps2.clock.o
-  }.elsewhen(!io.ps2.clock.t && dut.io.ps2.clock.t) {
-    ps2_clock := io.ps2.clock.o
-  }.otherwise {
-    assert(false.B)
-    ps2_clock := false.B
-  }
-  io.ps2.clock.i := ps2_clock
-  dut.io.ps2.clock.i := ps2_clock
-
-  // simulate bus
-  val ps2_data = Wire(Bool())
-  when(io.ps2.data.t && dut.io.ps2.data.t) {
-    // pull-up
-    ps2_data := true.B
-  }.elsewhen(io.ps2.data.t && !dut.io.ps2.data.t) {
-    ps2_data := dut.io.ps2.data.o
-  }.elsewhen(!io.ps2.data.t && dut.io.ps2.data.t) {
-    ps2_data := io.ps2.data.o
-  }.otherwise {
-    assert(false.B)
-    ps2_data := false.B
-  }
-  io.ps2.data.i := ps2_data
-  dut.io.ps2.data.i := ps2_data
+  io.ps2.clock.connectTo(dut.io.ps2.clock)
+  io.ps2.data.connectTo(dut.io.ps2.data)
 }
 
 class PS2Spec extends AnyFreeSpec {
-  s"simulate ps2 request" in {
+  s"test ps2 request" in {
     simulate(new PS2BusSim()) { dut =>
       dut.io.ps2.clock.t.poke(true.B)
       dut.io.ps2.data.t.poke(true.B)
@@ -252,6 +229,83 @@ class PS2Spec extends AnyFreeSpec {
       // verify that is is ready to accept next req
       dut.clock.step(64)
       assert(dut.io.req.ready.peek().litToBoolean)
+    }
+  }
+
+  s"test ps2 recv" in {
+    simulate(new PS2BusSim()) { dut =>
+      dut.io.ps2.clock.t.poke(true.B)
+      dut.io.ps2.data.t.poke(true.B)
+      dut.reset.poke(true.B)
+      dut.clock.step(16)
+      dut.reset.poke(false.B)
+      dut.clock.step(16)
+
+      // initially, clock and data are both high
+      assert(dut.io.ps2.clock.i.peek().litToBoolean)
+      assert(dut.io.ps2.data.i.peek().litToBoolean)
+
+      // start to send
+      val data = 0x12
+      val parity = true.B
+      dut.io.ps2.data.t.poke(false.B)
+      dut.io.ps2.clock.t.poke(false.B)
+
+      // start bit
+      dut.io.ps2.data.o.poke(false.B)
+      dut.clock.step(16)
+
+      // clock pulse
+      dut.io.ps2.clock.o.poke(false.B)
+      dut.clock.step(16)
+
+      dut.io.ps2.clock.o.poke(true.B)
+      dut.clock.step(16)
+
+      for (i <- 0 to 7) {
+        dut.io.ps2.data.o.poke(((data & (1 << i)) != 0).B)
+        dut.clock.step(16)
+
+        // clock pulse
+        dut.io.ps2.clock.o.poke(false.B)
+        dut.clock.step(16)
+
+        dut.io.ps2.clock.o.poke(true.B)
+        dut.clock.step(16)
+      }
+
+      // parity
+      dut.io.ps2.data.o.poke(parity)
+      dut.clock.step(16)
+
+      // clock pulse
+      dut.io.ps2.clock.o.poke(false.B)
+      dut.clock.step(16)
+
+      dut.io.ps2.clock.o.poke(true.B)
+      dut.clock.step(16)
+
+      // stop
+      dut.io.ps2.data.o.poke(true.B)
+      dut.clock.step(16)
+
+      // clock pulse
+      dut.io.ps2.clock.o.poke(false.B)
+      dut.clock.step(16)
+
+      dut.io.ps2.clock.o.poke(true.B)
+      dut.clock.step(16)
+
+      // read data from ps2
+      dut.io.resp.ready.poke(true.B)
+      while (dut.io.resp.valid.peek().litToBoolean == false) {
+        dut.clock.step()
+      }
+      assert(dut.io.resp.bits.peek().litValue == data)
+      dut.clock.step()
+      dut.io.resp.ready.poke(false.B)
+
+      dut.clock.step(16)
     }
   }
 }
