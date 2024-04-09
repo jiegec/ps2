@@ -66,9 +66,6 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
 
   val state = RegInit(PS2State.sIdle)
 
-  val lastData = RegNext(io.ps2.data.i)
-  val lastClock = RegNext(io.ps2.clock.i)
-
   // default wiring
   respQueue.io.enq.noenq()
   io.ps2.clock.o := false.B
@@ -90,10 +87,25 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
   val curResp = Reg(UInt(9.W))
   val counterRecv = new Counter(9)
 
+  // handle glitches
+  val lastClockSamples = RegInit(7.U(3.W))
+  lastClockSamples := Cat(lastClockSamples(1, 0), io.ps2.clock.i)
+  val clockHigh = WireInit(lastClockSamples.asBools.reduce(_ & _))
+  val clockLow = WireInit((~lastClockSamples).asBools.reduce(_ & _))
+
+  val lastClock = RegInit(true.B)
+  when(clockHigh) {
+    lastClock := true.B
+  }.elsewhen(clockLow) {
+    lastClock := false.B
+  }
+  val clockRise = WireInit(clockHigh && ~lastClock)
+  val clockFall = WireInit(clockLow && lastClock)
+
   switch(state) {
     is(PS2State.sIdle) {
       // check for data input
-      when(io.ps2.clock.i && !lastClock && !io.ps2.data.i) {
+      when(clockRise && !io.ps2.data.i) {
         // rising edge & start
         counterRecv.reset()
         state := PS2State.sRecvResp
@@ -127,7 +139,7 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
 
       // wait for the device to bring the clock line low
       // detect negedge
-      when(!io.ps2.clock.i && lastClock) {
+      when(clockFall) {
         state := PS2State.sSendReqAndParity
         counterSend.reset()
         counter2ms.reset()
@@ -142,7 +154,7 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
 
       // wait for the device to bring the clock line low
       // detect negedge
-      when(!io.ps2.clock.i && lastClock) {
+      when(clockFall) {
         when(counterSend.inc()) {
           state := PS2State.sSendStop
         }
@@ -154,13 +166,13 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
     is(PS2State.sSendStop) {
       // release the data line
       // wait for the device to bring clock low
-      when(!io.ps2.clock.i && lastClock) {
+      when(clockFall) {
         state := PS2State.sSendAck
       }
     }
     is(PS2State.sSendAck) {
       // wait for the device to release clock
-      when(io.ps2.clock.i && !lastClock) {
+      when(clockRise) {
         // finish transmission
         state := PS2State.sIdle
       }
@@ -172,7 +184,7 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
     is(PS2State.sRecvResp) {
       // although the web page says to sample on falling edge
       // we sample on rising edge for simplicity
-      when(io.ps2.clock.i && !lastClock) {
+      when(clockRise) {
         curResp := curResp.bitSet(counterRecv.value, io.ps2.data.i)
         when(counterRecv.inc()) {
           state := PS2State.sRecvStop
@@ -181,7 +193,7 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
     }
     is(PS2State.sRecvStop) {
       // wait for last rising edge
-      when(io.ps2.clock.i && !lastClock) {
+      when(clockRise) {
         state := PS2State.sRecvDone
       }
     }
@@ -201,6 +213,6 @@ object PS2 extends App {
   ChiselStage.emitSystemVerilogFile(
     new PS2Controller(),
     Array(),
-    Array("--lowering-options=disallowLocalVariables"),
+    Array("--lowering-options=disallowLocalVariables")
   )
 }
