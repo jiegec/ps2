@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  push:
+    branches: [ '**' ]
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        scala: [2.13.10]
+        jvm: [adopt@1.11]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Setup Mill
+        uses: jodersky/setup-mill@master
+        with:
+          mill-version: 0.11.5
+      - name: Install simulators
+        run: sudo apt-get install -y verilator iverilog
+      - name: Install other dependencies
+        run: sudo apt-get install -y gcc libboost-dev z3
+      - name: Compile
+        run: mill ps2.compile
+      - name: Test
+        run: mill ps2.test
+      - name: Build
+        run: mill ps2.runMain ps2.PS2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rtl
+          path: PS2Controller.sv
