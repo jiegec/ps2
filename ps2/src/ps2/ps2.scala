@@ -213,6 +213,11 @@ object PS2 extends App {
   ChiselStage.emitSystemVerilogFile(
     new PS2Controller(),
     Array(),
-    Array("--lowering-options=disallowLocalVariables")
+    // https://circt.llvm.org/docs/VerilogGeneration/
+    // better compatibility: disallowLocalVariables,disallowPackedArrays
+    // better readability: emitWireInPorts,disallowPortDeclSharing,disallowMuxInlining
+    Array(
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays,emitWireInPorts,disallowPortDeclSharing,disallowMuxInlining"
+    )
   )
 }
