@@ -38,6 +38,8 @@ mill ps2.runMain ps2.PS2
 
 SystemVerilog source is written at `PS2Controller.sv`. You can change and regenerate code if the clock frequency is different. But if you do not care about timeouts and run your design under a lower clock frequency, you do not need to change it.
 
+If you do not have the environment for running mill, you can download prebuilt RTL from GitHub Actions artifact.
+
 Reference:
 
 - [PS/2 Mouse/Keyboard Protocol by Adam Chapweske](https://www.burtonsys.com/ps2_chapweske.htm)
