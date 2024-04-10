@@ -1,6 +1,7 @@
 /.metals/
 /.vscode/
 /.bloop/
+/.direnv/
 /out/
 /test_run_dir/
 /*.sv
