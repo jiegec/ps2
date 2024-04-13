@@ -43,3 +43,6 @@ If you do not have the environment for running mill, you can download prebuilt R
 Reference:
 
 - [PS/2 Mouse/Keyboard Protocol by Adam Chapweske](https://www.burtonsys.com/ps2_chapweske.htm)
+- [The PS/2 Mouse Interface by Adam Chapweske](https://isdaman.com/alsos/hardware/mouse/ps2interface.htm)
+- [PS/2 Mouse](https://wiki.osdev.org/PS/2_Mouse)
+- [PS/2 Keyboard](https://wiki.osdev.org/PS/2_Keyboard)
