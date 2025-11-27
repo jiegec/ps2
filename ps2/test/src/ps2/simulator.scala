@@ -28,14 +28,14 @@ object Simulator extends PeekPokeAPI {
 
   // use verilator
   private class DefaultSimulator(val workspacePath: String)
-      extends SingleBackendSimulator[verilator.Backend] {
+      extends Simulator[verilator.Backend] {
     val backend = verilator.Backend.initializeFromProcessEnvironment()
     val tag = "default"
     val commonCompilationSettings = CommonCompilationSettings()
     val backendSpecificCompilationSettings =
       verilator.Backend.CompilationSettings(
         traceStyle =
-          Some(verilator.Backend.CompilationSettings.TraceStyle.Vcd())
+          Some(verilator.Backend.CompilationSettings.TraceStyle(verilator.Backend.CompilationSettings.TraceKind.Vcd))
       )
   }
 }
