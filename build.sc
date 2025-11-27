@@ -6,8 +6,8 @@ import coursier.maven.MavenRepository
 
 // learned from https://github.com/OpenXiangShan/fudian/blob/main/build.sc
 val defaultVersions = Map(
-  "chisel" -> ("org.chipsalliance", "6.2.0", false),
-  "chisel-plugin" -> ("org.chipsalliance", "6.2.0", true),
+  "chisel" -> ("org.chipsalliance", "7.3.0", false),
+  "chisel-plugin" -> ("org.chipsalliance", "7.3.0", true),
   "scalatest" -> ("org.scalatest", "3.2.10", false),
 )
 

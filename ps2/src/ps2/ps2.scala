@@ -210,14 +210,17 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
 }
 
 object PS2 extends App {
-  ChiselStage.emitSystemVerilogFile(
+  ChiselStage.emitSystemVerilog(
     new PS2Controller(),
     Array(),
     // https://circt.llvm.org/docs/VerilogGeneration/
     // better compatibility: disallowLocalVariables,disallowPackedArrays
     // better readability: emitWireInPorts,disallowPortDeclSharing,disallowMuxInlining
     Array(
-      "--lowering-options=disallowLocalVariables,disallowPackedArrays,emitWireInPorts,disallowPortDeclSharing,disallowMuxInlining"
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays,emitWireInPorts,disallowPortDeclSharing,disallowMuxInlining",
+      "--default-layer-specialization=disable",
+      "-o",
+      "PS2Controller.sv"
     )
   )
 }

@@ -2,6 +2,7 @@
 /.vscode/
 /.bloop/
 /.direnv/
+/.bsp/
 /out/
 /test_run_dir/
 /*.sv
