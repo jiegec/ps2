@@ -11,7 +11,7 @@ val defaultVersions = Map(
   "scalatest" -> ("org.scalatest", "3.2.10", false),
 )
 
-val commonScalaVersion = "2.13.10"
+val commonScalaVersion = "2.13.17"
 
 def getVersion(dep: String) = {
   val (org, ver, cross) = defaultVersions(dep)
