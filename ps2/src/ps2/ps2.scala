@@ -185,7 +185,8 @@ class PS2Controller(clockFreqInMHz: Int = 50, queueSize: Int = 16)
       // although the web page says to sample on falling edge
       // we sample on rising edge for simplicity
       when(clockRise) {
-        curResp := curResp.bitSet(counterRecv.value, io.ps2.data.i)
+        // bitSet widens to 16 bits due to the shift; mask back to 9 bits
+        curResp := curResp.bitSet(counterRecv.value, io.ps2.data.i)(8, 0)
         when(counterRecv.inc()) {
           state := PS2State.sRecvStop
         }
