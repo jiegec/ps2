@@ -1,12 +1,11 @@
-{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/e42377bbe5ef06ffec13eebf7949d72793ed66f9.tar.gz") {}
+{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/8be7bd0c83f12e2e3bbba07c9044d6fed9e66f7f.tar.gz") {}
 }:
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
-    circt # 1.59.0
     mill
     boost
-    verilog # iverilog
+    iverilog
     verilator
   ];
 }

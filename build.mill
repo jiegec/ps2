@@ -17,9 +17,9 @@ def getVersion(dep: String) = {
   val (org, ver, cross) = defaultVersions(dep)
   val version = sys.env.getOrElse(dep + "Version", ver)
   if (cross)
-    ivy"$org:::$dep:$version"
+    mvn"$org:::$dep:$version"
   else
-    ivy"$org::$dep:$version"
+    mvn"$org::$dep:$version"
 }
 
 trait CommonModule extends ScalaModule {
@@ -32,16 +32,16 @@ trait CommonModule extends ScalaModule {
 object ps2
     extends CommonModule
     with ScalafmtModule {
-  override def ivyDeps = super.ivyDeps() ++ Agg(
+  override def mvnDeps = super.mvnDeps() ++ Seq(
     getVersion("chisel"),
   )
 
-  override def scalacPluginIvyDeps = super.scalacPluginIvyDeps() ++ Agg(
+  override def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
     getVersion("chisel-plugin")
   )
 
   object test extends ScalaTests with TestModule.ScalaTest {
-    override def ivyDeps = super.ivyDeps() ++ Agg(
+    override def mvnDeps = super.mvnDeps() ++ Seq(
       getVersion("scalatest")
     )
   }
