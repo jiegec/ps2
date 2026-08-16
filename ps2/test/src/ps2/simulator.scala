@@ -33,9 +33,8 @@ object Simulator extends PeekPokeAPI {
     val tag = "default"
     val commonCompilationSettings = CommonCompilationSettings()
     val backendSpecificCompilationSettings =
-      verilator.Backend.CompilationSettings(
-        traceStyle =
-          Some(verilator.Backend.CompilationSettings.TraceStyle(verilator.Backend.CompilationSettings.TraceKind.Vcd))
+      verilator.Backend.CompilationSettings.default.withTraceStyle(
+        Some(verilator.Backend.CompilationSettings.TraceStyle(verilator.Backend.CompilationSettings.TraceKind.Vcd))
       )
   }
 }
